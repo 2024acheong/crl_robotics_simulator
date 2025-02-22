@@ -15,12 +15,12 @@ p.setGravity(0, 0, -9.81)
 p.setTimeStep(1.0 / 240.0)
 
 # End-effector and gripper info
-end_effector_link_index = 11  # Franka's end-effector link
+end_effector_link_index = 11
 gripper_left = 9
 gripper_right = 10
 
 # Define cube properties
-cube_start_pos = [0.4, 0.0, 0.0]  # On table surface
+cube_start_pos = [0.4, 0.0, 0.05]  # On the ground
 cube_start_orientation = p.getQuaternionFromEuler([0, 0, 0])
 
 # Create a small cube
@@ -34,11 +34,27 @@ cube_uid = p.createMultiBody(
     baseOrientation=cube_start_orientation
 )
 
-# Define target positions (above the cube, then to another location)
+bowl_start_pos = [0.2, -0.3, 0.05]  # Position on the floor
+bowl_orientation = p.getQuaternionFromEuler([0, 0, 1.57])  # Correct rotation to open upward
+
+bowl_collision_shape = p.createCollisionShape(p.GEOM_CYLINDER, radius=0.15, height=0.05)
+bowl_visual_shape = p.createVisualShape(p.GEOM_CYLINDER, radius=0.15, length=0.05, rgbaColor=[0.8, 0.5, 0.2, 1])
+
+bowl_id = p.createMultiBody(
+    baseMass=0,  # Static object
+    baseCollisionShapeIndex=bowl_collision_shape,
+    baseVisualShapeIndex=bowl_visual_shape,
+    basePosition=bowl_start_pos,
+    baseOrientation=bowl_orientation
+)
+
+
+# Define target positions (above cube, pick-up, above bowl, place)
 target_positions = [
-    [0.4, 0.0, 0.75],  # Move above the cube
-    [0.4, 0.0, 0.0],  # Lower to the cube
-    [0.2, -0.3, 0.7],  # Move to a new location
+    [0.4, 0.0, 0.2],  # Move above the cube
+    [0.4, 0.0, 0.05],  # Lower to the cube
+    [0.2, -0.3, 0.2],  # Move above the bowl
+    [0.2, -0.3, 0.07],  # Lower into the bowl
 ]
 
 target_orientation = p.getQuaternionFromEuler([0, 0, 0])
@@ -103,21 +119,23 @@ constraint_id = p.createConstraint(
     childFramePosition=[0, 0, 0]
 )
 
-# Move the cube to a new position
-print("Moving cube to second position...")
+# Move the cube above the bowl
+print("Moving cube above the bowl...")
 move_arm_to_target(target_positions[2])
 
+# Lower the cube into the bowl
+print("Lowering cube into the bowl...")
+move_arm_to_target(target_positions[3])
 
-# Remove the constraint so the cube is free
-p.removeConstraint(constraint_id)
+# Ensure the constraint is removed first before opening the gripper
+print("Releasing the cube...")
+p.removeConstraint(constraint_id)  # REMOVE THE CONSTRAINT FIRST
 
-
-# Open the gripper to release the cube
-print("Opening gripper...")
-open_gripper()
-
-# Re-enable gravity on the cube so it falls when released
+# Re-enable gravity on the cube so it falls into the bowl
 p.changeDynamics(cube_uid, -1, mass=1)
+
+# Open the gripper fully after removing constraint
+open_gripper()
 
 # Keep simulation running for visualization
 time.sleep(2)
